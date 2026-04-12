@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/usr/bin/php",
+            "args": [
+                "/home/kanym/projects/internal-academy-folder/laravel/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
