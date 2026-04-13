@@ -1,0 +1,4 @@
+# Avoid opening SQLite in the editor (can lock the file and break migrate:fresh).
+database/database.sqlite
+database/database.sqlite-shm
+database/database.sqlite-wal
