@@ -53,7 +53,7 @@ class WorkshopTest extends TestCase
                 'name' => 'Intro to Testing',
                 'slug' => '',
                 'description' => 'Learn PHPUnit basics.',
-                'starts_at' => $startsAt->toDateTimeString(),
+                'starts_at' => $startsAt->toIso8601String(),
                 'duration_minutes' => 90,
                 'capacity' => 12,
             ])
@@ -80,7 +80,7 @@ class WorkshopTest extends TestCase
                 'name' => 'Blocked',
                 'slug' => 'blocked',
                 'description' => null,
-                'starts_at' => $startsAt->toDateTimeString(),
+                'starts_at' => $startsAt->toIso8601String(),
                 'duration_minutes' => 60,
                 'capacity' => 5,
             ])

@@ -118,7 +118,7 @@ class WorkshopController extends Controller
                 'name' => $workshop->name,
                 'slug' => $workshop->slug,
                 'description' => $workshop->description,
-                'starts_at' => $workshop->starts_at->format('Y-m-d\TH:i'),
+                'starts_at' => $workshop->starts_at->toIso8601String(),
                 'duration_minutes' => $workshop->duration_minutes,
                 'capacity' => $workshop->capacity,
             ],

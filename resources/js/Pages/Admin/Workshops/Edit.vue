@@ -4,6 +4,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { dateTimeLocalValueToUtcIso, utcIsoStringToDateTimeLocalValue } from '@/utils/datetimeLocal';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -17,15 +18,19 @@ const form = useForm({
     name: props.workshop.name,
     slug: props.workshop.slug,
     description: props.workshop.description ?? '',
-    starts_at: props.workshop.starts_at,
+    starts_at: utcIsoStringToDateTimeLocalValue(props.workshop.starts_at),
     duration_minutes: props.workshop.duration_minutes,
     capacity: props.workshop.capacity,
 });
 
 function submit() {
-    form.put(
-        route('admin.workshops.update', props.workshop.slug),
-    );
+    form
+        .transform((data) => ({
+            ...data,
+            starts_at:
+                dateTimeLocalValueToUtcIso(data.starts_at) ?? data.starts_at,
+        }))
+        .put(route('admin.workshops.update', props.workshop.slug));
 }
 </script>
 

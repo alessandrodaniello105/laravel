@@ -79,6 +79,56 @@ class WorkshopRegistrationTest extends TestCase
         $this->assertNotNull($registration->cancelled_at);
     }
 
+    public function test_user_cannot_register_for_workshop_that_overlaps_another_active_registration(): void
+    {
+        $user = User::factory()->create();
+        $first = Workshop::factory()->create([
+            'starts_at' => now()->addDays(5)->setTime(20, 30, 0),
+            'duration_minutes' => 120,
+            'capacity' => 10,
+        ]);
+        $second = Workshop::factory()->create([
+            'starts_at' => now()->addDays(5)->setTime(21, 30, 0),
+            'duration_minutes' => 60,
+            'capacity' => 10,
+        ]);
+
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $first->id,
+            'user_id' => $user->id,
+            'cancelled_at' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('workshops.register', $second))
+            ->assertSessionHasErrors('workshop');
+    }
+
+    public function test_user_may_register_for_workshop_that_starts_when_another_ends(): void
+    {
+        $user = User::factory()->create();
+        $first = Workshop::factory()->create([
+            'starts_at' => now()->addDays(5)->setTime(20, 30, 0),
+            'duration_minutes' => 120,
+            'capacity' => 10,
+        ]);
+        $second = Workshop::factory()->create([
+            'starts_at' => now()->addDays(5)->setTime(22, 30, 0),
+            'duration_minutes' => 60,
+            'capacity' => 10,
+        ]);
+
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $first->id,
+            'user_id' => $user->id,
+            'cancelled_at' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('workshops.register', $second))
+            ->assertSessionHasNoErrors();
+    }
+
     public function test_user_cannot_register_twice_when_already_active(): void
     {
         $user = User::factory()->create();

@@ -4,6 +4,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { dateTimeLocalValueToUtcIso } from '@/utils/datetimeLocal';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
@@ -16,7 +17,13 @@ const form = useForm({
 });
 
 function submit() {
-    form.post(route('admin.workshops.store'));
+    form
+        .transform((data) => ({
+            ...data,
+            starts_at:
+                dateTimeLocalValueToUtcIso(data.starts_at) ?? data.starts_at,
+        }))
+        .post(route('admin.workshops.store'));
 }
 </script>
 

@@ -42,6 +42,23 @@ class WorkshopRegistrationController extends Controller
                 ]);
             }
 
+            $otherActiveRegistrations = WorkshopRegistration::query()
+                ->where('user_id', $request->user()->id)
+                ->where('workshop_id', '!=', $locked->id)
+                ->whereNull('cancelled_at')
+                ->with('workshop')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($otherActiveRegistrations as $otherRegistration) {
+                $otherWorkshop = $otherRegistration->workshop;
+                if ($otherWorkshop !== null && $locked->timeRangeOverlaps($otherWorkshop)) {
+                    throw ValidationException::withMessages([
+                        'workshop' => 'This workshop overlaps another session you are already signed up for.',
+                    ]);
+                }
+            }
+
             if ($registration !== null) {
                 $registration->cancelled_at = null;
                 $registration->save();
