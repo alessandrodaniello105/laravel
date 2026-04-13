@@ -96,7 +96,7 @@ class WorkshopSeeder extends Seeder
         $this->registerUsers($w2->id, $participantIds->slice(10, 10)->all());
         $this->registerUsers($w3->id, $participantIds->slice(20, 10)->all());
 
-        $this->registerUsers($w4->id, $participantIds->slice(0, 8)->all());
+        $this->registerUsers($w4->id, $participantIds->slice(0, 9)->all());
 
         $this->registerUsers($w5->id, $participantIds->slice(0, 3)->all());
     }
