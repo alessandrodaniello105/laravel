@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\WorkshopRegistrationUpdated;
 use Database\Factories\WorkshopFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -54,6 +55,19 @@ class Workshop extends Model
     public function activeRegistrations(): HasMany
     {
         return $this->registrations()->whereNull('cancelled_at');
+    }
+
+    public function broadcastRegistrationSnapshot(): void
+    {
+        $activeRegistrationsCount = $this->activeRegistrations()->count();
+        $remainingSpots = max(0, $this->capacity - $activeRegistrationsCount);
+
+        WorkshopRegistrationUpdated::dispatch(
+            $this->id,
+            $activeRegistrationsCount,
+            $remainingSpots,
+            $this->capacity,
+        );
     }
 
     public static function uniqueSlugFromName(string $name): string

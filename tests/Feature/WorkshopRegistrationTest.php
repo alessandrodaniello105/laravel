@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Events\WorkshopRegistrationUpdated;
 use App\Models\User;
 use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -24,6 +26,8 @@ class WorkshopRegistrationTest extends TestCase
 
     public function test_user_can_register_and_cancel_for_upcoming_workshop(): void
     {
+        Event::fake([WorkshopRegistrationUpdated::class]);
+
         $user = User::factory()->create([
             'role' => UserRole::User,
         ]);
@@ -37,6 +41,13 @@ class WorkshopRegistrationTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('workshops.show', $workshop, absolute: false));
 
+        Event::assertDispatched(WorkshopRegistrationUpdated::class, function (WorkshopRegistrationUpdated $event) use ($workshop): bool {
+            return $event->workshopId === $workshop->id
+                && $event->activeRegistrationsCount === 1
+                && $event->remainingSpots === 4
+                && $event->capacity === 5;
+        });
+
         $this->assertDatabaseHas('workshop_registrations', [
             'workshop_id' => $workshop->id,
             'user_id' => $user->id,
@@ -47,6 +58,12 @@ class WorkshopRegistrationTest extends TestCase
             ->delete(route('workshops.unregister', $workshop))
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('workshops.show', $workshop, absolute: false));
+
+        Event::assertDispatched(WorkshopRegistrationUpdated::class, function (WorkshopRegistrationUpdated $event) use ($workshop): bool {
+            return $event->workshopId === $workshop->id
+                && $event->activeRegistrationsCount === 0
+                && $event->remainingSpots === 5;
+        });
 
         $this->assertDatabaseHas('workshop_registrations', [
             'workshop_id' => $workshop->id,

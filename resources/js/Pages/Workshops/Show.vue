@@ -1,9 +1,12 @@
 <script setup>
+import EchoConnectionBadge from '@/Components/EchoConnectionBadge.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { echo, echoIsConfigured } from '@laravel/echo-vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     workshop: {
@@ -29,6 +32,76 @@ const props = defineProps({
 });
 
 const page = usePage();
+
+const remainingSpots = ref(Number(props.workshop.remaining_spots));
+const activeRegistrationsCount = ref(
+    Number(props.workshop.active_registrations_count),
+);
+const capacity = ref(Number(props.workshop.capacity));
+const liveUpdatesEnabled = ref(false);
+
+function syncCountsFromServerWorkshop() {
+    const w = props.workshop;
+    remainingSpots.value = Number(w.remaining_spots);
+    activeRegistrationsCount.value = Number(w.active_registrations_count);
+    capacity.value = Number(w.capacity);
+}
+
+/** Resync when Inertia sends new numbers (same workshop id). */
+const workshopServerFingerprint = computed(
+    () =>
+        `${Number(props.workshop.id)}:${Number(props.workshop.active_registrations_count)}:${Number(props.workshop.remaining_spots)}:${Number(props.workshop.capacity)}`,
+);
+
+watch(workshopServerFingerprint, () => syncCountsFromServerWorkshop(), {
+    immediate: true,
+});
+
+/** @type {(() => void) | null} */
+let tearDownEcho = null;
+
+function bindWorkshopChannel(workshopId) {
+    if (!echoIsConfigured()) {
+        liveUpdatesEnabled.value = false;
+
+        return () => {};
+    }
+
+    const echoClient = echo();
+    const channelName = `workshop.${workshopId}`;
+    const channel = echoClient.channel(channelName);
+
+    channel.listen('.WorkshopRegistrationUpdated', (payload) => {
+        remainingSpots.value = Number(payload.remaining_spots);
+        activeRegistrationsCount.value = Number(
+            payload.active_registrations_count,
+        );
+        capacity.value = Number(payload.capacity);
+    });
+
+    liveUpdatesEnabled.value = true;
+
+    return () => {
+        echoClient.leave(channelName);
+    };
+}
+
+watch(
+    () => props.workshop.id,
+    (id) => {
+        if (tearDownEcho) {
+            tearDownEcho();
+        }
+        tearDownEcho = bindWorkshopChannel(id);
+    },
+    { immediate: true },
+);
+
+onUnmounted(() => {
+    if (tearDownEcho) {
+        tearDownEcho();
+    }
+});
 
 function formatWhen(iso) {
     return new Date(iso).toLocaleString(undefined, {
@@ -74,9 +147,24 @@ function cancel() {
 
                 <article class="mt-6 overflow-hidden bg-white shadow sm:rounded-lg">
                     <div class="border-b border-gray-100 px-6 py-6">
-                        <h1 class="text-2xl font-semibold text-gray-900">
-                            {{ workshop.name }}
-                        </h1>
+                        <div
+                            class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3"
+                        >
+                            <h1 class="text-2xl font-semibold text-gray-900">
+                                {{ workshop.name }}
+                            </h1>
+                            <EchoConnectionBadge
+                                v-if="echoIsConfigured()"
+                                class="shrink-0"
+                            />
+                            <span
+                                v-else
+                                class="inline-flex shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10"
+                                title="Set VITE_REVERB_APP_KEY and run Vite so Echo can connect to Reverb."
+                            >
+                                Live: not configured
+                            </span>
+                        </div>
                         <dl
                             class="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-600 sm:grid-cols-2"
                         >
@@ -99,8 +187,17 @@ function cancel() {
                                     Capacity
                                 </dt>
                                 <dd>
-                                    {{ workshop.remaining_spots }} /
-                                    {{ workshop.capacity }} spots left
+                                    {{ remainingSpots }} /
+                                    {{ capacity }} spots left
+                                    <span class="block text-xs text-gray-500">
+                                        {{ activeRegistrationsCount }} registered
+                                    </span>
+                                    <span
+                                        v-if="liveUpdatesEnabled"
+                                        class="text-xs font-normal text-green-700"
+                                    >
+                                        Live updates on
+                                    </span>
                                 </dd>
                             </div>
                         </dl>

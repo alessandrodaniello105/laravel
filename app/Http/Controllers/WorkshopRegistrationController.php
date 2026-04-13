@@ -53,6 +53,8 @@ class WorkshopRegistrationController extends Controller
             }
         });
 
+        $workshop->broadcastRegistrationSnapshot();
+
         return redirect()->route('workshops.show', $workshop);
     }
 
@@ -74,6 +76,8 @@ class WorkshopRegistrationController extends Controller
 
         $registration->cancelled_at = now();
         $registration->save();
+
+        $workshop->broadcastRegistrationSnapshot();
 
         return redirect()->route('workshops.show', $workshop);
     }
