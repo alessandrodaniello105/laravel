@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Events\AdminWorkshopStatisticsUpdated;
 use App\Events\WorkshopRegistrationUpdated;
 use App\Models\User;
 use App\Models\Workshop;
@@ -26,7 +27,7 @@ class WorkshopRegistrationTest extends TestCase
 
     public function test_user_can_register_and_cancel_for_upcoming_workshop(): void
     {
-        Event::fake([WorkshopRegistrationUpdated::class]);
+        Event::fake([WorkshopRegistrationUpdated::class, AdminWorkshopStatisticsUpdated::class]);
 
         $user = User::factory()->create([
             'role' => UserRole::User,
@@ -47,6 +48,8 @@ class WorkshopRegistrationTest extends TestCase
                 && $event->remainingSpots === 4
                 && $event->capacity === 5;
         });
+
+        Event::assertDispatched(AdminWorkshopStatisticsUpdated::class);
 
         $this->assertDatabaseHas('workshop_registrations', [
             'workshop_id' => $workshop->id,

@@ -5,7 +5,9 @@ namespace Tests\Feature\Admin;
 use App\Enums\UserRole;
 use App\Models\User;
 use App\Models\Workshop;
+use App\Models\WorkshopRegistration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class WorkshopTest extends TestCase
@@ -37,7 +39,51 @@ class WorkshopTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('admin.workshops.index'))
-            ->assertOk();
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Admin/Workshops/Index')
+                ->has('workshopStatistics')
+                ->where('workshopStatistics.total_active_registrations', 0)
+                ->where('workshopStatistics.most_popular_workshop', null));
+    }
+
+    public function test_admin_workshops_index_statistics_reflect_registrations(): void
+    {
+        $admin = User::factory()->create([
+            'role' => UserRole::Admin,
+        ]);
+
+        $wA = Workshop::factory()->upcoming()->create(['capacity' => 10]);
+        $wB = Workshop::factory()->upcoming()->create(['capacity' => 10]);
+
+        $u1 = User::factory()->create();
+        $u2 = User::factory()->create();
+        $u3 = User::factory()->create();
+
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $wA->id,
+            'user_id' => $u1->id,
+            'cancelled_at' => null,
+        ]);
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $wB->id,
+            'user_id' => $u2->id,
+            'cancelled_at' => null,
+        ]);
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $wB->id,
+            'user_id' => $u3->id,
+            'cancelled_at' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.workshops.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Admin/Workshops/Index')
+                ->where('workshopStatistics.total_active_registrations', 3)
+                ->where('workshopStatistics.most_popular_workshop.id', $wB->id)
+                ->where('workshopStatistics.most_popular_workshop.active_registrations_count', 2));
     }
 
     public function test_admin_can_create_workshop(): void

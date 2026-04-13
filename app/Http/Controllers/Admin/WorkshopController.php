@@ -39,6 +39,7 @@ class WorkshopController extends Controller
 
         return Inertia::render('Admin/Workshops/Index', [
             'workshops' => $workshops,
+            'workshopStatistics' => Workshop::adminStatisticsSnapshot(),
         ]);
     }
 
@@ -62,6 +63,8 @@ class WorkshopController extends Controller
         }
 
         $workshop = Workshop::query()->create($data);
+
+        Workshop::broadcastAdminWorkshopStatistics();
 
         return redirect()->route('admin.workshops.edit', $workshop);
     }
@@ -143,6 +146,8 @@ class WorkshopController extends Controller
         $this->authorize('delete', $workshop);
 
         $workshop->delete();
+
+        Workshop::broadcastAdminWorkshopStatistics();
 
         return redirect()->route('admin.workshops.index');
     }

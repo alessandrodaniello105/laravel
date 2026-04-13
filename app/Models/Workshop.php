@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\AdminWorkshopStatisticsUpdated;
 use App\Events\PromotedFromWorkshopWaitlist;
 use App\Events\WorkshopRegistrationUpdated;
 use Database\Factories\WorkshopFactory;
@@ -178,6 +179,56 @@ class Workshop extends Model
             $this->capacity,
             $promotedUserId,
         );
+
+        static::broadcastAdminWorkshopStatistics();
+    }
+
+    /**
+     * @return array{
+     *     most_popular_workshop: array{id: int, name: string, slug: string, active_registrations_count: int}|null,
+     *     total_active_registrations: int
+     * }
+     */
+    public static function adminStatisticsSnapshot(): array
+    {
+        $rows = static::query()
+            ->withCount([
+                'registrations as active_registrations_count' => function ($query): void {
+                    $query->whereNull('cancelled_at');
+                },
+            ])
+            ->orderBy('id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return [
+                'most_popular_workshop' => null,
+                'total_active_registrations' => 0,
+            ];
+        }
+
+        $sorted = $rows->sortBy([
+            ['active_registrations_count', 'desc'],
+            ['id', 'asc'],
+        ])->values();
+
+        $top = $sorted->first();
+        \assert($top !== null);
+
+        return [
+            'most_popular_workshop' => [
+                'id' => $top->id,
+                'name' => $top->name,
+                'slug' => $top->slug,
+                'active_registrations_count' => (int) $top->active_registrations_count,
+            ],
+            'total_active_registrations' => (int) $rows->sum('active_registrations_count'),
+        ];
+    }
+
+    public static function broadcastAdminWorkshopStatistics(): void
+    {
+        AdminWorkshopStatisticsUpdated::dispatch(static::adminStatisticsSnapshot());
     }
 
     public static function uniqueSlugFromName(string $name): string
