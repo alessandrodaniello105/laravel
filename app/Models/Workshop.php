@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\PromotedFromWorkshopWaitlist;
 use App\Events\WorkshopRegistrationUpdated;
 use Database\Factories\WorkshopFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -59,6 +60,96 @@ class Workshop extends Model
     }
 
     /**
+     * @return HasMany<WorkshopWaitlistEntry, $this>
+     */
+    public function waitlistEntries(): HasMany
+    {
+        return $this->hasMany(WorkshopWaitlistEntry::class);
+    }
+
+    /**
+     * Whether the user already has an active registration for another workshop that overlaps this schedule.
+     */
+    public function userWouldOverlapActiveRegistrations(User $user): bool
+    {
+        $otherActiveRegistrations = WorkshopRegistration::query()
+            ->where('user_id', $user->id)
+            ->where('workshop_id', '!=', $this->id)
+            ->whereNull('cancelled_at')
+            ->with('workshop')
+            ->get();
+
+        foreach ($otherActiveRegistrations as $otherRegistration) {
+            $otherWorkshop = $otherRegistration->workshop;
+            if ($otherWorkshop !== null && $this->timeRangeOverlaps($otherWorkshop)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Promote FIFO waitlist entries into active registrations while capacity allows.
+     * Entries skipped due to schedule overlap are removed from the waitlist.
+     *
+     * @return int|null The last promoted user's id, if any promotions occurred in this run.
+     */
+    public function promoteWaitlistEntries(): ?int
+    {
+        $lastPromotedUserId = null;
+
+        while ($this->activeRegistrations()->count() < $this->capacity) {
+            $entry = WorkshopWaitlistEntry::query()
+                ->where('workshop_id', $this->id)
+                ->orderBy('created_at')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($entry === null) {
+                break;
+            }
+
+            $user = $entry->user;
+
+            if ($this->userWouldOverlapActiveRegistrations($user)) {
+                $entry->delete();
+
+                continue;
+            }
+
+            $existingRegistration = WorkshopRegistration::query()
+                ->where('workshop_id', $this->id)
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingRegistration !== null) {
+                if ($existingRegistration->cancelled_at === null) {
+                    $entry->delete();
+
+                    continue;
+                }
+
+                $existingRegistration->cancelled_at = null;
+                $existingRegistration->save();
+            } else {
+                WorkshopRegistration::query()->create([
+                    'workshop_id' => $this->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            $entry->delete();
+            $lastPromotedUserId = $user->id;
+            PromotedFromWorkshopWaitlist::dispatch($user, $this);
+        }
+
+        return $lastPromotedUserId;
+    }
+
+    /**
      * Exclusive end instant: sessions are treated as [starts_at, endsAt).
      */
     public function endsAt(): Carbon
@@ -75,7 +166,7 @@ class Workshop extends Model
             && $other->starts_at->lt($this->endsAt());
     }
 
-    public function broadcastRegistrationSnapshot(): void
+    public function broadcastRegistrationSnapshot(?int $promotedUserId = null): void
     {
         $activeRegistrationsCount = $this->activeRegistrations()->count();
         $remainingSpots = max(0, $this->capacity - $activeRegistrationsCount);
@@ -85,6 +176,7 @@ class Workshop extends Model
             $activeRegistrationsCount,
             $remainingSpots,
             $this->capacity,
+            $promotedUserId,
         );
     }
 

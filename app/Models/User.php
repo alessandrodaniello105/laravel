@@ -45,4 +45,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(WorkshopRegistration::class);
     }
+
+    /**
+     * @return HasMany<WorkshopWaitlistEntry, $this>
+     */
+    public function workshopWaitlistEntries(): HasMany
+    {
+        return $this->hasMany(WorkshopWaitlistEntry::class);
+    }
 }

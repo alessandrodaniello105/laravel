@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
+use App\Models\WorkshopWaitlistEntry;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -43,8 +44,51 @@ class DashboardController extends Controller
                 ];
             });
 
+        $waitlistedEntries = WorkshopWaitlistEntry::query()
+            ->where('user_id', $user->id)
+            ->whereHas('workshop', function ($query): void {
+                $query->where('starts_at', '>=', now());
+            })
+            ->with('workshop')
+            ->get();
+
+        $waitlistedWorkshops = $waitlistedEntries->map(function (WorkshopWaitlistEntry $entry): array {
+            $workshop = $entry->workshop;
+            \assert($workshop !== null);
+
+            $workshop->loadCount([
+                'registrations as active_registrations_count' => function ($query): void {
+                    $query->whereNull('cancelled_at');
+                },
+            ]);
+
+            $waitlistPosition = 1 + WorkshopWaitlistEntry::query()
+                ->where('workshop_id', $workshop->id)
+                ->where(function ($query) use ($entry): void {
+                    $query->where('created_at', '<', $entry->created_at)
+                        ->orWhere(function ($query) use ($entry): void {
+                            $query->where('created_at', '=', $entry->created_at)
+                                ->where('id', '<', $entry->id);
+                        });
+                })
+                ->count();
+
+            return [
+                'id' => $workshop->id,
+                'name' => $workshop->name,
+                'slug' => $workshop->slug,
+                'starts_at' => $workshop->starts_at->toIso8601String(),
+                'duration_minutes' => $workshop->duration_minutes,
+                'capacity' => $workshop->capacity,
+                'active_registrations_count' => $workshop->active_registrations_count,
+                'remaining_spots' => max(0, $workshop->capacity - (int) $workshop->active_registrations_count),
+                'waitlist_position' => $waitlistPosition,
+            ];
+        })->values();
+
         return Inertia::render('Dashboard', [
             'registeredWorkshops' => $registeredWorkshops,
+            'waitlistedWorkshops' => $waitlistedWorkshops,
         ]);
     }
 }

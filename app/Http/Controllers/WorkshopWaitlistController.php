@@ -4,16 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
+use App\Models\WorkshopWaitlistEntry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-class WorkshopRegistrationController extends Controller
+class WorkshopWaitlistController extends Controller
 {
     public function store(Request $request, Workshop $workshop): RedirectResponse
     {
-        $this->authorize('register', $workshop);
+        $this->authorize('joinWaitlist', $workshop);
 
         DB::transaction(function () use ($request, $workshop): void {
             $locked = Workshop::query()->whereKey($workshop->id)->lockForUpdate()->firstOrFail();
@@ -23,6 +24,12 @@ class WorkshopRegistrationController extends Controller
                 ->whereNull('cancelled_at')
                 ->lockForUpdate()
                 ->count();
+
+            if ($activeCount < $locked->capacity) {
+                throw ValidationException::withMessages([
+                    'workshop' => 'This workshop is not full — register for a spot instead.',
+                ]);
+            }
 
             $registration = WorkshopRegistration::query()
                 ->where('workshop_id', $locked->id)
@@ -36,9 +43,15 @@ class WorkshopRegistrationController extends Controller
                 ]);
             }
 
-            if ($activeCount >= $locked->capacity) {
+            $alreadyWaiting = WorkshopWaitlistEntry::query()
+                ->where('workshop_id', $locked->id)
+                ->where('user_id', $request->user()->id)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($alreadyWaiting) {
                 throw ValidationException::withMessages([
-                    'workshop' => 'This workshop is full.',
+                    'workshop' => 'You are already on the waiting list for this workshop.',
                 ]);
             }
 
@@ -48,51 +61,23 @@ class WorkshopRegistrationController extends Controller
                 ]);
             }
 
-            if ($registration !== null) {
-                $registration->cancelled_at = null;
-                $registration->save();
-            } else {
-                WorkshopRegistration::query()->create([
-                    'workshop_id' => $locked->id,
-                    'user_id' => $request->user()->id,
-                ]);
-            }
+            WorkshopWaitlistEntry::query()->create([
+                'workshop_id' => $locked->id,
+                'user_id' => $request->user()->id,
+            ]);
         });
-
-        $workshop->broadcastRegistrationSnapshot();
 
         return redirect()->route('workshops.show', $workshop);
     }
 
     public function destroy(Request $request, Workshop $workshop): RedirectResponse
     {
-        $this->authorize('cancelRegistration', $workshop);
+        $this->authorize('leaveWaitlist', $workshop);
 
-        $promotedUserId = null;
-
-        DB::transaction(function () use ($request, $workshop, &$promotedUserId): void {
-            $locked = Workshop::query()->whereKey($workshop->id)->lockForUpdate()->firstOrFail();
-
-            $registration = WorkshopRegistration::query()
-                ->where('workshop_id', $locked->id)
-                ->where('user_id', $request->user()->id)
-                ->whereNull('cancelled_at')
-                ->lockForUpdate()
-                ->first();
-
-            if ($registration === null) {
-                throw ValidationException::withMessages([
-                    'workshop' => 'You are not registered for this workshop.',
-                ]);
-            }
-
-            $registration->cancelled_at = now();
-            $registration->save();
-
-            $promotedUserId = $locked->promoteWaitlistEntries();
-        });
-
-        $workshop->broadcastRegistrationSnapshot($promotedUserId);
+        WorkshopWaitlistEntry::query()
+            ->where('workshop_id', $workshop->id)
+            ->where('user_id', $request->user()->id)
+            ->delete();
 
         return redirect()->route('workshops.show', $workshop);
     }

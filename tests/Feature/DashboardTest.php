@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
+use App\Models\WorkshopWaitlistEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
@@ -39,6 +40,7 @@ class DashboardTest extends TestCase
                 ->component('Dashboard')
                 ->has('registeredWorkshops', 1)
                 ->where('registeredWorkshops.0.name', 'Alpha Session')
+                ->has('waitlistedWorkshops', 0)
             );
     }
 
@@ -58,6 +60,7 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Dashboard')
                 ->has('registeredWorkshops', 0)
+                ->has('waitlistedWorkshops', 0)
             );
     }
 
@@ -81,6 +84,7 @@ class DashboardTest extends TestCase
                 ->where('registeredWorkshops.0.id', $workshop->id)
                 ->where('registeredWorkshops.0.active_registrations_count', 1)
                 ->where('registeredWorkshops.0.remaining_spots', 9)
+                ->has('waitlistedWorkshops', 0)
             );
     }
 
@@ -100,6 +104,38 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('Dashboard')
                 ->has('registeredWorkshops', 0)
+                ->has('waitlistedWorkshops', 0)
+            );
+    }
+
+    public function test_dashboard_includes_upcoming_waitlisted_workshops_with_position(): void
+    {
+        $user = User::factory()->create();
+        $workshop = Workshop::factory()->upcoming()->create([
+            'name' => 'Full Session',
+            'capacity' => 1,
+        ]);
+
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $workshop->id,
+            'user_id' => User::factory(),
+            'cancelled_at' => null,
+        ]);
+
+        WorkshopWaitlistEntry::query()->create([
+            'workshop_id' => $workshop->id,
+            'user_id' => $user->id,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Dashboard')
+                ->has('registeredWorkshops', 0)
+                ->has('waitlistedWorkshops', 1)
+                ->where('waitlistedWorkshops.0.name', 'Full Session')
+                ->where('waitlistedWorkshops.0.waitlist_position', 1)
             );
     }
 }

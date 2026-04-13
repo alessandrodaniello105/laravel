@@ -17,6 +17,7 @@ class WorkshopRegistrationUpdated implements ShouldBroadcastNow
         public int $activeRegistrationsCount,
         public int $remainingSpots,
         public int $capacity,
+        public ?int $promotedUserId = null,
     ) {}
 
     /**
@@ -35,7 +36,7 @@ class WorkshopRegistrationUpdated implements ShouldBroadcastNow
     }
 
     /**
-     * @return array<string, int>
+     * @return array<string, int|null>
      */
     public function broadcastWith(): array
     {
@@ -44,6 +45,7 @@ class WorkshopRegistrationUpdated implements ShouldBroadcastNow
             'active_registrations_count' => $this->activeRegistrationsCount,
             'remaining_spots' => $this->remainingSpots,
             'capacity' => $this->capacity,
+            'promoted_user_id' => $this->promotedUserId,
         ];
     }
 }

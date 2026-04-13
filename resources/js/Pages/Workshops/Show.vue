@@ -17,6 +17,18 @@ const props = defineProps({
         type: Boolean,
         required: true,
     },
+    isOnWaitlist: {
+        type: Boolean,
+        default: false,
+    },
+    waitlistPosition: {
+        type: Number,
+        default: null,
+    },
+    canJoinWaitlist: {
+        type: Boolean,
+        default: false,
+    },
     canLogin: {
         type: Boolean,
         default: true,
@@ -57,6 +69,10 @@ watch(workshopServerFingerprint, () => syncCountsFromServerWorkshop(), {
     immediate: true,
 });
 
+const isWorkshopFull = computed(
+    () => activeRegistrationsCount.value >= capacity.value,
+);
+
 /** @type {(() => void) | null} */
 let tearDownEcho = null;
 
@@ -77,6 +93,25 @@ function bindWorkshopChannel(workshopId) {
             payload.active_registrations_count,
         );
         capacity.value = Number(payload.capacity);
+
+        const promotedId = payload.promoted_user_id;
+        const authId = page.props.auth?.user?.id;
+        if (
+            promotedId != null &&
+            authId != null &&
+            Number(promotedId) === Number(authId)
+        ) {
+            router.reload({
+                only: [
+                    'isRegistered',
+                    'isOnWaitlist',
+                    'waitlistPosition',
+                    'canJoinWaitlist',
+                    'workshop',
+                ],
+                preserveScroll: true,
+            });
+        }
     });
 
     liveUpdatesEnabled.value = true;
@@ -128,6 +163,16 @@ function cancel() {
         router.delete(
             route('workshops.unregister', props.workshop.slug),
         );
+    }
+}
+
+function joinWaitlist() {
+    router.post(route('workshops.waitlist.store', props.workshop.slug));
+}
+
+function leaveWaitlist() {
+    if (confirm('Leave the waiting list for this workshop?')) {
+        router.delete(route('workshops.waitlist.destroy', props.workshop.slug));
     }
 }
 </script>
@@ -218,20 +263,62 @@ function cancel() {
 
                         <template v-if="$page.props.auth.user">
                             <template v-if="registrationOpen">
-                                <PrimaryButton
-                                    v-if="!isRegistered"
-                                    type="button"
-                                    @click="register"
+                                <template v-if="isRegistered">
+                                    <SecondaryButton
+                                        type="button"
+                                        @click="cancel"
+                                    >
+                                        Cancel registration
+                                    </SecondaryButton>
+                                </template>
+                                <template v-else-if="isOnWaitlist">
+                                    <p class="text-sm text-sky-900">
+                                        You are
+                                        <strong>#{{ waitlistPosition }}</strong>
+                                        on the waiting list (first in line is
+                                        promoted when a spot opens).
+                                    </p>
+                                    <SecondaryButton
+                                        class="mt-3"
+                                        type="button"
+                                        @click="leaveWaitlist"
+                                    >
+                                        Leave waiting list
+                                    </SecondaryButton>
+                                </template>
+                                <template
+                                    v-else-if="isWorkshopFull && canJoinWaitlist"
                                 >
-                                    Register
-                                </PrimaryButton>
-                                <SecondaryButton
-                                    v-else
-                                    type="button"
-                                    @click="cancel"
-                                >
-                                    Cancel registration
-                                </SecondaryButton>
+                                    <p class="mb-2 text-sm text-gray-600">
+                                        This workshop is full. Join the waiting
+                                        list — if someone cancels, the next
+                                        person in line is registered
+                                        automatically.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center rounded-md border border-transparent bg-sky-100 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-sky-900 ring-1 ring-sky-200 transition hover:bg-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2"
+                                        @click="joinWaitlist"
+                                    >
+                                        Join waiting list
+                                    </button>
+                                </template>
+                                <template v-else-if="isWorkshopFull">
+                                    <p class="text-sm text-gray-600">
+                                        This workshop is full. You cannot join
+                                        the waiting list right now (for example,
+                                        if it would overlap another session you
+                                        are signed up for).
+                                    </p>
+                                </template>
+                                <template v-else>
+                                    <PrimaryButton
+                                        type="button"
+                                        @click="register"
+                                    >
+                                        Register
+                                    </PrimaryButton>
+                                </template>
                             </template>
                             <template v-else>
                                 <p

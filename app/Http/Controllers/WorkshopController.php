@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Workshop;
+use App\Models\WorkshopWaitlistEntry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -66,12 +67,37 @@ class WorkshopController extends Controller
         ]);
 
         $isRegistered = false;
+        $isOnWaitlist = false;
+        $waitlistPosition = null;
+
         if ($request->user()) {
             $isRegistered = $workshop->registrations()
                 ->where('user_id', $request->user()->id)
                 ->whereNull('cancelled_at')
                 ->exists();
+
+            $waitlistEntry = WorkshopWaitlistEntry::query()
+                ->where('workshop_id', $workshop->id)
+                ->where('user_id', $request->user()->id)
+                ->first();
+
+            $isOnWaitlist = $waitlistEntry !== null;
+
+            if ($waitlistEntry !== null) {
+                $waitlistPosition = 1 + WorkshopWaitlistEntry::query()
+                    ->where('workshop_id', $workshop->id)
+                    ->where(function ($query) use ($waitlistEntry): void {
+                        $query->where('created_at', '<', $waitlistEntry->created_at)
+                            ->orWhere(function ($query) use ($waitlistEntry): void {
+                                $query->where('created_at', '=', $waitlistEntry->created_at)
+                                    ->where('id', '<', $waitlistEntry->id);
+                            });
+                    })
+                    ->count();
+            }
         }
+
+        $isFull = (int) $workshop->active_registrations_count >= (int) $workshop->capacity;
 
         return Inertia::render('Workshops/Show', [
             'canLogin' => Route::has('login'),
@@ -89,6 +115,14 @@ class WorkshopController extends Controller
                 'remaining_spots' => max(0, $workshop->capacity - (int) $workshop->active_registrations_count),
             ],
             'isRegistered' => $isRegistered,
+            'isOnWaitlist' => $isOnWaitlist,
+            'waitlistPosition' => $waitlistPosition,
+            'canJoinWaitlist' => $request->user() !== null
+                && ! $isRegistered
+                && ! $isOnWaitlist
+                && $isFull
+                && $workshop->starts_at->isFuture()
+                && ! $workshop->userWouldOverlapActiveRegistrations($request->user()),
         ]);
     }
 }

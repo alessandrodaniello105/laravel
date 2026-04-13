@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WorkshopController;
 use App\Http\Controllers\WorkshopRegistrationController;
+use App\Http\Controllers\WorkshopWaitlistController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -28,6 +29,8 @@ Route::get('/workshops/{workshop}', [WorkshopController::class, 'show'])->name('
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/workshops/{workshop}/register', [WorkshopRegistrationController::class, 'store'])->name('workshops.register');
     Route::delete('/workshops/{workshop}/register', [WorkshopRegistrationController::class, 'destroy'])->name('workshops.unregister');
+    Route::post('/workshops/{workshop}/waitlist', [WorkshopWaitlistController::class, 'store'])->name('workshops.waitlist.store');
+    Route::delete('/workshops/{workshop}/waitlist', [WorkshopWaitlistController::class, 'destroy'])->name('workshops.waitlist.destroy');
 });
 
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {

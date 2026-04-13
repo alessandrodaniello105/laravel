@@ -51,4 +51,26 @@ class WorkshopPolicy
 
         return Response::allow();
     }
+
+    public function joinWaitlist(User $user, Workshop $workshop): Response
+    {
+        if (! $workshop->starts_at->isFuture()) {
+            return Response::deny('Registration is closed; this workshop is no longer upcoming.');
+        }
+
+        if ($workshop->activeRegistrations()->count() < $workshop->capacity) {
+            return Response::deny('This workshop is not full; register for a spot instead.');
+        }
+
+        return Response::allow();
+    }
+
+    public function leaveWaitlist(User $user, Workshop $workshop): Response
+    {
+        if (! $workshop->starts_at->isFuture()) {
+            return Response::deny('You can only leave the waiting list before the workshop starts.');
+        }
+
+        return Response::allow();
+    }
 }

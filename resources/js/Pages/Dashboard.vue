@@ -2,7 +2,7 @@
 import EchoConnectionBadge from '@/Components/EchoConnectionBadge.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { echo, echoIsConfigured } from '@laravel/echo-vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -10,7 +10,13 @@ const props = defineProps({
         type: Array,
         required: true,
     },
+    waitlistedWorkshops: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const page = usePage();
 
 function cloneWorkshopsFromProps() {
     return props.registeredWorkshops.map((w) => ({
@@ -23,20 +29,39 @@ function cloneWorkshopsFromProps() {
     }));
 }
 
+function cloneWaitlistedFromProps() {
+    return props.waitlistedWorkshops.map((w) => ({
+        ...w,
+        id: Number(w.id),
+        remaining_spots: Number(w.remaining_spots),
+        active_registrations_count: Number(w.active_registrations_count),
+        capacity: Number(w.capacity),
+        duration_minutes: Number(w.duration_minutes),
+        waitlist_position: Number(w.waitlist_position),
+    }));
+}
+
 const workshops = ref(cloneWorkshopsFromProps());
+const waitlisted = ref(cloneWaitlistedFromProps());
 
 const liveUpdatesEnabled = ref(false);
 
-/**
- * When Inertia sends new workshop rows OR updated counts (same ids), resync local state.
- * Watching only ids misses "register then open dashboard" when the id set is unchanged.
- */
 const registeredWorkshopsServerFingerprint = computed(() =>
     [...props.registeredWorkshops]
         .sort((a, b) => Number(a.id) - Number(b.id))
         .map(
             (w) =>
                 `${Number(w.id)}:${Number(w.active_registrations_count)}:${Number(w.remaining_spots)}:${Number(w.capacity)}`,
+        )
+        .join('|'),
+);
+
+const waitlistedWorkshopsServerFingerprint = computed(() =>
+    [...props.waitlistedWorkshops]
+        .sort((a, b) => Number(a.id) - Number(b.id))
+        .map(
+            (w) =>
+                `${Number(w.id)}:${Number(w.active_registrations_count)}:${Number(w.remaining_spots)}:${Number(w.capacity)}:${Number(w.waitlist_position)}`,
         )
         .join('|'),
 );
@@ -49,9 +74,17 @@ watch(
     { immediate: true },
 );
 
+watch(
+    waitlistedWorkshopsServerFingerprint,
+    () => {
+        waitlisted.value = cloneWaitlistedFromProps();
+    },
+    { immediate: true },
+);
+
 let lastVisibilityReloadMs = 0;
 
-function reloadRegisteredWorkshopsFromServer() {
+function reloadDashboardWorkshopsFromServer() {
     if (document.visibilityState !== 'visible') {
         return;
     }
@@ -61,18 +94,18 @@ function reloadRegisteredWorkshopsFromServer() {
     }
     lastVisibilityReloadMs = now;
     router.reload({
-        only: ['registeredWorkshops'],
+        only: ['registeredWorkshops', 'waitlistedWorkshops'],
         preserveScroll: true,
     });
 }
 
-const workshopIdsKey = computed(() =>
-    workshops.value
-        .map((w) => Number(w.id))
-        .slice()
-        .sort((a, b) => a - b)
-        .join(','),
-);
+const subscribedWorkshopIdsKey = computed(() => {
+    const ids = new Set([
+        ...workshops.value.map((w) => Number(w.id)),
+        ...waitlisted.value.map((w) => Number(w.id)),
+    ]);
+    return [...ids].sort((a, b) => a - b).join(',');
+});
 
 /** @type {(() => void) | null} */
 let tearDownEcho = null;
@@ -107,6 +140,33 @@ function bindWorkshopChannels(ids) {
                     capacity: Number(payload.capacity),
                 };
             });
+            waitlisted.value = waitlisted.value.map((w) => {
+                if (Number(w.id) !== wid) {
+                    return w;
+                }
+
+                return {
+                    ...w,
+                    remaining_spots: Number(payload.remaining_spots),
+                    active_registrations_count: Number(
+                        payload.active_registrations_count,
+                    ),
+                    capacity: Number(payload.capacity),
+                };
+            });
+
+            const promotedId = payload.promoted_user_id;
+            const authId = page.props.auth?.user?.id;
+            if (
+                promotedId != null &&
+                authId != null &&
+                Number(promotedId) === Number(authId)
+            ) {
+                router.reload({
+                    only: ['registeredWorkshops', 'waitlistedWorkshops'],
+                    preserveScroll: true,
+                });
+            }
         });
         cleanups.push(() => {
             echoClient.leave(channelName);
@@ -123,14 +183,13 @@ function bindWorkshopChannels(ids) {
 }
 
 watch(
-    workshopIdsKey,
+    subscribedWorkshopIdsKey,
     () => {
         if (tearDownEcho) {
             tearDownEcho();
         }
-        tearDownEcho = bindWorkshopChannels(
-            workshops.value.map((w) => w.id),
-        );
+        const ids = [...new Set([...workshops.value, ...waitlisted.value].map((w) => w.id))];
+        tearDownEcho = bindWorkshopChannels(ids);
     },
     { immediate: true },
 );
@@ -138,14 +197,14 @@ watch(
 onMounted(() => {
     document.addEventListener(
         'visibilitychange',
-        reloadRegisteredWorkshopsFromServer,
+        reloadDashboardWorkshopsFromServer,
     );
 });
 
 onUnmounted(() => {
     document.removeEventListener(
         'visibilitychange',
-        reloadRegisteredWorkshopsFromServer,
+        reloadDashboardWorkshopsFromServer,
     );
     if (tearDownEcho) {
         tearDownEcho();
@@ -196,7 +255,7 @@ function formatDuration(minutes) {
             </div>
         </template>
 
-        <div class="py-12">
+        <div class="space-y-10 py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div
                     class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
@@ -206,7 +265,10 @@ function formatDuration(minutes) {
                             Your upcoming workshops
                         </h3>
                         <p
-                            v-if="liveUpdatesEnabled && workshops.length"
+                            v-if="
+                                liveUpdatesEnabled &&
+                                (workshops.length || waitlisted.length)
+                            "
                             class="mt-1 text-xs text-green-700"
                         >
                             Spot counts update live while this page is open.
@@ -258,6 +320,64 @@ function formatDuration(minutes) {
                             </Link>
                             to sign up.
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <div
+                    class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
+                >
+                    <div class="border-b border-gray-100 p-6">
+                        <h3 class="text-lg font-medium text-gray-900">
+                            Waiting list
+                        </h3>
+                        <p class="mt-1 text-sm text-gray-600">
+                            Full workshops you are queued for. If a spot opens,
+                            you are registered automatically in order.
+                        </p>
+                    </div>
+
+                    <ul
+                        v-if="waitlisted.length"
+                        class="divide-y divide-gray-200"
+                    >
+                        <li
+                            v-for="w in waitlisted"
+                            :key="`w-${w.id}`"
+                            class="flex flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <div>
+                                <Link
+                                    :href="route('workshops.show', w.slug)"
+                                    class="text-lg font-medium text-sky-800 hover:text-sky-700"
+                                >
+                                    {{ w.name }}
+                                </Link>
+                                <p class="mt-1 text-sm text-gray-600">
+                                    {{ formatWhen(w.starts_at) }} ·
+                                    {{ formatDuration(w.duration_minutes) }}
+                                </p>
+                                <p class="mt-1 text-sm font-medium text-sky-900">
+                                    Your position:
+                                    <strong>#{{ w.waitlist_position }}</strong>
+                                </p>
+                            </div>
+                            <div class="text-right text-sm text-gray-600">
+                                <p>
+                                    {{ w.remaining_spots }} /
+                                    {{ w.capacity }}
+                                    spots left
+                                </p>
+                                <p class="text-xs text-gray-500">
+                                    {{ w.active_registrations_count }} registered
+                                </p>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <div v-else class="p-6 text-gray-600">
+                        <p>You are not on any waiting lists.</p>
                     </div>
                 </div>
             </div>
