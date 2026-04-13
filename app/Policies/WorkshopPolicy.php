@@ -36,8 +36,8 @@ class WorkshopPolicy
 
     public function register(User $user, Workshop $workshop): Response
     {
-        if ($workshop->starts_at->lte(now())) {
-            return Response::deny('This workshop has already started.');
+        if (! $workshop->starts_at->isFuture()) {
+            return Response::deny('Registration is closed; this workshop is no longer upcoming.');
         }
 
         return Response::allow();
@@ -45,7 +45,7 @@ class WorkshopPolicy
 
     public function cancelRegistration(User $user, Workshop $workshop): Response
     {
-        if ($workshop->starts_at->lte(now())) {
+        if (! $workshop->starts_at->isFuture()) {
             return Response::deny('You can only cancel before the workshop starts.');
         }
 

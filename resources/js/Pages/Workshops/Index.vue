@@ -7,6 +7,10 @@ defineProps({
         type: Object,
         required: true,
     },
+    pastWorkshops: {
+        type: Array,
+        required: true,
+    },
     canLogin: {
         type: Boolean,
         default: true,
@@ -44,10 +48,14 @@ function formatDuration(minutes) {
                     Workshops
                 </h1>
                 <p class="mt-2 text-sm text-gray-600">
-                    Browse upcoming workshops and reserve your seat.
+                    Upcoming sessions you can register for, and past sessions
+                    for reference.
                 </p>
 
-                <div class="mt-8 overflow-hidden bg-white shadow sm:rounded-lg">
+                <h2 class="mt-10 text-lg font-medium text-gray-900">
+                    Upcoming workshops
+                </h2>
+                <div class="mt-3 overflow-hidden bg-white shadow sm:rounded-lg">
                     <ul
                         v-if="workshops.data.length"
                         class="divide-y divide-gray-200"
@@ -76,7 +84,7 @@ function formatDuration(minutes) {
                         </li>
                     </ul>
                     <p v-else class="px-4 py-8 text-center text-sm text-gray-600">
-                        No workshops scheduled yet.
+                        No upcoming workshops.
                     </p>
                 </div>
 
@@ -98,6 +106,43 @@ function formatDuration(minutes) {
                         preserve-scroll
                         v-html="link.label"
                     />
+                </div>
+
+                <h2 class="mt-10 text-lg font-medium text-gray-900">
+                    Past workshops
+                </h2>
+                <p class="mt-1 text-sm text-gray-600">
+                    Start date and time are before now (registration is
+                    closed).
+                </p>
+                <div class="mt-3 overflow-hidden bg-white shadow sm:rounded-lg">
+                    <ul
+                        v-if="pastWorkshops.length"
+                        class="divide-y divide-gray-200"
+                    >
+                        <li
+                            v-for="w in pastWorkshops"
+                            :key="w.id"
+                            class="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <div>
+                                <Link
+                                    :href="route('workshops.show', w.slug)"
+                                    class="text-lg font-medium text-gray-700 hover:text-gray-900"
+                                >
+                                    {{ w.name }}
+                                </Link>
+                                <p class="mt-1 text-sm text-gray-600">
+                                    {{ formatWhen(w.starts_at) }} ·
+                                    {{ formatDuration(w.duration_minutes) }}
+                                </p>
+                            </div>
+                            <div class="text-sm text-gray-500">Ended</div>
+                        </li>
+                    </ul>
+                    <p v-else class="px-4 py-8 text-center text-sm text-gray-600">
+                        No past workshops yet.
+                    </p>
                 </div>
             </div>
         </div>

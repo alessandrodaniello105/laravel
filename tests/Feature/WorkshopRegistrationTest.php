@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class WorkshopRegistrationTest extends TestCase
@@ -125,11 +126,60 @@ class WorkshopRegistrationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_user_cannot_cancel_registration_after_workshop_has_started(): void
+    {
+        $user = User::factory()->create();
+        $workshop = Workshop::factory()->past()->create();
+
+        WorkshopRegistration::factory()->create([
+            'workshop_id' => $workshop->id,
+            'user_id' => $user->id,
+            'cancelled_at' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->delete(route('workshops.unregister', $workshop))
+            ->assertForbidden();
+    }
+
+    public function test_workshop_show_indicates_when_registration_is_closed(): void
+    {
+        $past = Workshop::factory()->past()->create();
+        $future = Workshop::factory()->upcoming()->create();
+
+        $this->get(route('workshops.show', $past))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Workshops/Show')
+                ->where('registrationOpen', false));
+
+        $this->get(route('workshops.show', $future))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Workshops/Show')
+                ->where('registrationOpen', true));
+    }
+
     public function test_public_workshop_pages_are_visible_to_guests(): void
     {
         $workshop = Workshop::factory()->upcoming()->create();
 
         $this->get(route('workshops.index'))->assertOk();
         $this->get(route('workshops.show', $workshop))->assertOk();
+    }
+
+    public function test_workshops_index_separates_upcoming_and_past(): void
+    {
+        Workshop::factory()->past()->create(['name' => 'Past Session']);
+        Workshop::factory()->upcoming()->create(['name' => 'Future Session']);
+
+        $this->get(route('workshops.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('Workshops/Index')
+                ->has('workshops.data', 1)
+                ->where('workshops.data.0.name', 'Future Session')
+                ->has('pastWorkshops', 1)
+                ->where('pastWorkshops.0.name', 'Past Session'));
     }
 }

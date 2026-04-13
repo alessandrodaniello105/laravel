@@ -22,6 +22,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    registrationOpen: {
+        type: Boolean,
+        required: true,
+    },
 });
 
 const page = usePage();
@@ -116,23 +120,41 @@ function cancel() {
                         />
 
                         <template v-if="$page.props.auth.user">
-                            <PrimaryButton
-                                v-if="!isRegistered"
-                                type="button"
-                                @click="register"
-                            >
-                                Register
-                            </PrimaryButton>
-                            <SecondaryButton
-                                v-else
-                                type="button"
-                                @click="cancel"
-                            >
-                                Cancel registration
-                            </SecondaryButton>
+                            <template v-if="registrationOpen">
+                                <PrimaryButton
+                                    v-if="!isRegistered"
+                                    type="button"
+                                    @click="register"
+                                >
+                                    Register
+                                </PrimaryButton>
+                                <SecondaryButton
+                                    v-else
+                                    type="button"
+                                    @click="cancel"
+                                >
+                                    Cancel registration
+                                </SecondaryButton>
+                            </template>
+                            <template v-else>
+                                <p
+                                    v-if="isRegistered"
+                                    class="text-sm text-gray-600"
+                                >
+                                    Registration is closed. You were signed up
+                                    for this workshop.
+                                </p>
+                                <p v-else class="text-sm text-gray-600">
+                                    Registration is closed; this workshop is
+                                    no longer upcoming.
+                                </p>
+                            </template>
                         </template>
                         <template v-else>
-                            <p class="text-sm text-gray-600">
+                            <p
+                                v-if="registrationOpen"
+                                class="text-sm text-gray-600"
+                            >
                                 <Link
                                     :href="route('login')"
                                     class="font-medium text-indigo-600 hover:text-indigo-500"
@@ -140,6 +162,10 @@ function cancel() {
                                     Log in
                                 </Link>
                                 to register for this workshop.
+                            </p>
+                            <p v-else class="text-sm text-gray-600">
+                                Registration is closed; this workshop is no
+                                longer upcoming.
                             </p>
                         </template>
                     </div>
