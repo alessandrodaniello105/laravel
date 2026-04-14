@@ -3,7 +3,8 @@ import EchoConnectionBadge from '@/Components/EchoConnectionBadge.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import PublicLayout from '@/Layouts/PublicLayout.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { echo, echoIsConfigured } from '@laravel/echo-vue';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -44,6 +45,20 @@ const props = defineProps({
 });
 
 const page = usePage();
+
+const layoutComponent = computed(() =>
+    page.props.auth?.user ? AuthenticatedLayout : GuestLayout,
+);
+
+const layoutProps = computed(() =>
+    page.props.auth?.user
+        ? {}
+        : {
+              variant: 'public',
+              canLogin: props.canLogin,
+              canRegister: props.canRegister,
+          },
+);
 
 const remainingSpots = ref(Number(props.workshop.remaining_spots));
 const activeRegistrationsCount = ref(
@@ -180,7 +195,7 @@ function leaveWaitlist() {
 <template>
     <Head :title="workshop.name" />
 
-    <PublicLayout :can-login="canLogin" :can-register="canRegister">
+    <component :is="layoutComponent" v-bind="layoutProps">
         <div class="py-10">
             <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
                 <Link
@@ -356,5 +371,5 @@ function leaveWaitlist() {
                 </article>
             </div>
         </div>
-    </PublicLayout>
+    </component>
 </template>

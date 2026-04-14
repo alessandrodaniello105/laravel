@@ -124,7 +124,7 @@ function destroy(slug) {
                 <h2
                     class="text-xl font-semibold leading-tight text-gray-800"
                 >
-                    Workshops (admin)
+                    Admin Dashboard
                 </h2>
                 <div class="flex flex-wrap items-center gap-2">
                     <EchoConnectionBadge

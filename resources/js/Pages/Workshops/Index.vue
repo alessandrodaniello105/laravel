@@ -1,8 +1,9 @@
 <script setup>
 import EchoConnectionBadge from '@/Components/EchoConnectionBadge.vue';
-import PublicLayout from '@/Layouts/PublicLayout.vue';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import GuestLayout from '@/Layouts/GuestLayout.vue';
 import { echo, echoIsConfigured } from '@laravel/echo-vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -23,6 +24,22 @@ const props = defineProps({
         default: true,
     },
 });
+
+const page = usePage();
+
+const layoutComponent = computed(() =>
+    page.props.auth?.user ? AuthenticatedLayout : GuestLayout,
+);
+
+const layoutProps = computed(() =>
+    page.props.auth?.user
+        ? {}
+        : {
+              variant: 'public',
+              canLogin: props.canLogin,
+              canRegister: props.canRegister,
+          },
+);
 
 function cloneUpcomingRowsFromProps() {
     return props.workshops.data.map((w) => ({
@@ -152,7 +169,7 @@ function formatDuration(minutes) {
 <template>
     <Head title="Workshops" />
 
-    <PublicLayout :can-login="canLogin" :can-register="canRegister">
+    <component :is="layoutComponent" v-bind="layoutProps">
         <div class="py-10">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div
@@ -284,5 +301,5 @@ function formatDuration(minutes) {
                 </div>
             </div>
         </div>
-    </PublicLayout>
+    </component>
 </template>
