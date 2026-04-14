@@ -204,6 +204,14 @@ function leaveWaitlist() {
                 >
                     ← Back to workshops
                 </Link>
+                
+                <Link
+                    v-if="$page.props.auth.user?.role === 'admin'"
+                    :href="route('admin.workshops.edit', workshop.slug)"
+                    class="text-sm text-gray-600 float-end hover:text-gray-900 bg-gray-200 px-3 py-2 rounded-md"
+                >
+                    Edit
+                </Link>
 
                 <article class="mt-6 overflow-hidden bg-white shadow sm:rounded-lg">
                     <div class="border-b border-gray-100 px-6 py-6">
