@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class Workshop extends Model
@@ -184,8 +185,12 @@ class Workshop extends Model
     }
 
     /**
+     * All-time popularity groups rows by exact workshop title (`name`) and sums every registration
+     * (including cancelled). The linked id/slug is the lowest-id workshop in the winning title group.
+     *
      * @return array{
      *     most_popular_workshop: array{id: int, name: string, slug: string, active_registrations_count: int}|null,
+     *     most_popular_all_time_workshop: array{id: int, name: string, slug: string, total_registrations_count: int}|null,
      *     total_active_registrations: int
      * }
      */
@@ -196,6 +201,7 @@ class Workshop extends Model
                 'registrations as active_registrations_count' => function ($query): void {
                     $query->whereNull('cancelled_at');
                 },
+                'registrations as total_registrations_count',
             ])
             ->orderBy('id')
             ->get();
@@ -203,25 +209,65 @@ class Workshop extends Model
         if ($rows->isEmpty()) {
             return [
                 'most_popular_workshop' => null,
+                'most_popular_all_time_workshop' => null,
                 'total_active_registrations' => 0,
             ];
         }
 
-        $sorted = $rows->sortBy([
+        $sortedActive = $rows->sortBy([
             ['active_registrations_count', 'desc'],
             ['id', 'asc'],
         ])->values();
 
-        $top = $sorted->first();
-        \assert($top !== null);
+        $topActive = $sortedActive->first();
+        \assert($topActive !== null);
+
+        /** @var Collection<string, Collection<int, Workshop>> $byTitle */
+        $byTitle = $rows->groupBy('name');
+
+        $titleAggregates = $byTitle->map(function (Collection $workshops, string $title): array {
+            $representative = $workshops->sortBy('id')->first();
+            \assert($representative instanceof Workshop);
+
+            return [
+                'name' => $title,
+                'total_registrations_count' => (int) $workshops->sum(
+                    fn (Workshop $w): int => (int) $w->total_registrations_count,
+                ),
+                'representative_id' => $representative->id,
+                'representative_slug' => $representative->slug,
+            ];
+        });
+
+        $choice = $titleAggregates
+            ->values()
+            ->sort(function (array $a, array $b): int {
+                if ($a['total_registrations_count'] !== $b['total_registrations_count']) {
+                    return $b['total_registrations_count'] <=> $a['total_registrations_count'];
+                }
+
+                return strcmp($a['name'], $b['name']);
+            })
+            ->first();
+
+        $mostPopularAllTime = null;
+        if ($choice !== null && $choice['total_registrations_count'] > 0) {
+            $mostPopularAllTime = [
+                'id' => $choice['representative_id'],
+                'name' => $choice['name'],
+                'slug' => $choice['representative_slug'],
+                'total_registrations_count' => $choice['total_registrations_count'],
+            ];
+        }
 
         return [
             'most_popular_workshop' => [
-                'id' => $top->id,
-                'name' => $top->name,
-                'slug' => $top->slug,
-                'active_registrations_count' => (int) $top->active_registrations_count,
+                'id' => $topActive->id,
+                'name' => $topActive->name,
+                'slug' => $topActive->slug,
+                'active_registrations_count' => (int) $topActive->active_registrations_count,
             ],
+            'most_popular_all_time_workshop' => $mostPopularAllTime,
             'total_active_registrations' => (int) $rows->sum('active_registrations_count'),
         ];
     }

@@ -32,11 +32,19 @@ function formatWhen(iso) {
                     {{ workshop.name }}
                 </h2>
                 <Link
+                    v-if="workshop.can_edit"
                     :href="route('admin.workshops.edit', workshop.slug)"
                     class="text-sm font-medium text-indigo-600 hover:text-indigo-500"
                 >
                     Edit
                 </Link>
+                <span
+                    v-else
+                    class="text-sm text-gray-500"
+                    title="Past workshops cannot be edited"
+                >
+                    Past event
+                </span>
             </div>
         </template>
 

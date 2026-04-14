@@ -15,6 +15,7 @@ class AdminWorkshopStatisticsUpdated implements ShouldBroadcastNow
     /**
      * @param  array{
      *     most_popular_workshop: array{id: int, name: string, slug: string, active_registrations_count: int}|null,
+     *     most_popular_all_time_workshop: array{id: int, name: string, slug: string, total_registrations_count: int}|null,
      *     total_active_registrations: int
      * }  $statistics
      */
@@ -38,6 +39,7 @@ class AdminWorkshopStatisticsUpdated implements ShouldBroadcastNow
     /**
      * @return array{
      *     most_popular_workshop: array{id: int, name: string, slug: string, active_registrations_count: int}|null,
+     *     most_popular_all_time_workshop: array{id: int, name: string, slug: string, total_registrations_count: int}|null,
      *     total_active_registrations: int
      * }
      */

@@ -34,6 +34,7 @@ class WorkshopController extends Controller
                     'duration_minutes' => $workshop->duration_minutes,
                     'capacity' => $workshop->capacity,
                     'active_registrations_count' => $workshop->active_registrations_count,
+                    'can_edit' => $workshop->starts_at->isFuture(),
                 ];
             });
 
@@ -94,6 +95,7 @@ class WorkshopController extends Controller
                 'starts_at' => $workshop->starts_at->toIso8601String(),
                 'duration_minutes' => $workshop->duration_minutes,
                 'capacity' => $workshop->capacity,
+                'can_edit' => $workshop->starts_at->isFuture(),
                 'active_registrations_count' => $workshop->active_registrations_count,
                 'registrations' => $workshop->registrations->map(function ($registration): array {
                     return [

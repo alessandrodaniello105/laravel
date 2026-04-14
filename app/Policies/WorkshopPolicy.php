@@ -26,7 +26,8 @@ class WorkshopPolicy
 
     public function update(User $user, Workshop $workshop): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role === UserRole::Admin
+            && $workshop->starts_at->isFuture();
     }
 
     public function delete(User $user, Workshop $workshop): bool

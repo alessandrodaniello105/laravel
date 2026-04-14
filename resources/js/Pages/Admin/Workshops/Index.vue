@@ -19,6 +19,7 @@ const props = defineProps({
 function cloneStatisticsFromProps() {
     const s = props.workshopStatistics;
     const popular = s.most_popular_workshop;
+    const popularAllTime = s.most_popular_all_time_workshop;
     return {
         total_active_registrations: Number(s.total_active_registrations),
         most_popular_workshop: popular
@@ -31,6 +32,16 @@ function cloneStatisticsFromProps() {
                   ),
               }
             : null,
+        most_popular_all_time_workshop: popularAllTime
+            ? {
+                  id: Number(popularAllTime.id),
+                  name: popularAllTime.name,
+                  slug: popularAllTime.slug,
+                  total_registrations_count: Number(
+                      popularAllTime.total_registrations_count,
+                  ),
+              }
+            : null,
     };
 }
 
@@ -39,7 +50,8 @@ const statistics = ref(cloneStatisticsFromProps());
 const statisticsServerFingerprint = computed(() => {
     const s = props.workshopStatistics;
     const p = s.most_popular_workshop;
-    return `${Number(s.total_active_registrations)}:${p ? `${p.id}:${p.active_registrations_count}` : 'null'}`;
+    const a = s.most_popular_all_time_workshop;
+    return `${Number(s.total_active_registrations)}:${p ? `${p.id}:${p.active_registrations_count}` : 'null'}:${a ? `${a.id}:${a.total_registrations_count}` : 'null'}`;
 });
 
 watch(
@@ -81,6 +93,20 @@ function bindAdminStatisticsChannel() {
                       ),
                   }
                 : null,
+            most_popular_all_time_workshop:
+                payload.most_popular_all_time_workshop
+                    ? {
+                          id: Number(
+                              payload.most_popular_all_time_workshop.id,
+                          ),
+                          name: payload.most_popular_all_time_workshop.name,
+                          slug: payload.most_popular_all_time_workshop.slug,
+                          total_registrations_count: Number(
+                              payload.most_popular_all_time_workshop
+                                  .total_registrations_count,
+                          ),
+                      }
+                    : null,
         };
     });
 
@@ -164,7 +190,7 @@ function destroy(slug) {
                         </p>
                     </div>
                     <div
-                        class="grid gap-6 px-6 py-6 sm:grid-cols-2"
+                        class="grid gap-6 px-6 py-6 sm:grid-cols-2 lg:grid-cols-3"
                     >
                         <div
                             class="rounded-lg bg-indigo-50/80 p-5 ring-1 ring-indigo-100"
@@ -189,7 +215,7 @@ function destroy(slug) {
                             <p
                                 class="text-xs font-semibold uppercase tracking-wide text-emerald-900"
                             >
-                                Most popular workshop
+                                Most popular (active)
                             </p>
                             <template v-if="statistics.most_popular_workshop">
                                 <p class="mt-2 text-lg font-semibold text-emerald-950">
@@ -212,7 +238,7 @@ function destroy(slug) {
                                             .active_registrations_count
                                     }}
                                     <span class="text-base font-normal text-emerald-800">
-                                        registrations
+                                        active registrations
                                     </span>
                                 </p>
                                 <p class="mt-1 text-xs text-emerald-800">
@@ -224,6 +250,59 @@ function destroy(slug) {
                                 class="mt-3 text-sm text-emerald-800"
                             >
                                 No workshops yet.
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-lg bg-violet-50/80 p-5 ring-1 ring-violet-100 sm:col-span-2 lg:col-span-1"
+                        >
+                            <p
+                                class="text-xs font-semibold uppercase tracking-wide text-violet-900"
+                            >
+                                Most popular (all time)
+                            </p>
+                            <template
+                                v-if="statistics.most_popular_all_time_workshop"
+                            >
+                                <p class="mt-2 text-lg font-semibold text-violet-950">
+                                    <Link
+                                        :href="
+                                            route(
+                                                'admin.workshops.show',
+                                                statistics
+                                                    .most_popular_all_time_workshop
+                                                    .slug,
+                                            )
+                                        "
+                                        class="text-violet-800 underline decoration-violet-300 decoration-2 underline-offset-2 hover:text-violet-700"
+                                    >
+                                        {{
+                                            statistics
+                                                .most_popular_all_time_workshop
+                                                .name
+                                        }}
+                                    </Link>
+                                </p>
+                                <p class="mt-2 text-2xl font-semibold tabular-nums text-violet-950">
+                                    {{
+                                        statistics
+                                            .most_popular_all_time_workshop
+                                            .total_registrations_count
+                                    }}
+                                    <span class="text-base font-normal text-violet-800">
+                                        total registrations
+                                    </span>
+                                </p>
+                                <p class="mt-1 text-xs text-violet-800">
+                                    Same exact title across dates counts as one event; every
+                                    sign-up row is summed, including cancelled. Tie on total:
+                                    alphabetical title. Link opens the earliest workshop id.
+                                </p>
+                            </template>
+                            <p
+                                v-else
+                                class="mt-3 text-sm text-violet-800"
+                            >
+                                No registration history yet.
                             </p>
                         </div>
                     </div>
@@ -273,20 +352,32 @@ function destroy(slug) {
                                     {{ w.active_registrations_count }} /
                                     {{ w.capacity }}
                                 </td>
-                                <td class="space-x-2 px-4 py-3">
-                                    <Link
-                                        :href="route('admin.workshops.edit', w.slug)"
-                                        class="text-indigo-600 hover:text-indigo-500"
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex flex-wrap items-center gap-x-3 gap-y-1"
                                     >
-                                        Edit
-                                    </Link>
-                                    <button
-                                        type="button"
-                                        class="text-indigo-600 hover:text-indigo-500"
-                                        @click="destroy(w.slug)"
-                                    >
-                                        Delete
-                                    </button>
+                                        <Link
+                                            v-if="w.can_edit"
+                                            :href="route('admin.workshops.edit', w.slug)"
+                                            class="text-indigo-600 hover:text-indigo-500"
+                                        >
+                                            Edit
+                                        </Link>
+                                        <span
+                                            v-else
+                                            class="text-sm text-gray-400"
+                                            title="Past workshops cannot be edited"
+                                        >
+                                            Past
+                                        </span>
+                                        <button
+                                            type="button"
+                                            class="text-indigo-600 hover:text-indigo-500"
+                                            @click="destroy(w.slug)"
+                                        >
+                                            Delete
+                                        </button>
+                                    </span>
                                 </td>
                             </tr>
                         </tbody>
