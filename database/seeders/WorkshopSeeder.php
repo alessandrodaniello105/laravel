@@ -8,6 +8,7 @@ use App\Models\Workshop;
 use App\Models\WorkshopRegistration;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class WorkshopSeeder extends Seeder
 {
@@ -99,6 +100,83 @@ class WorkshopSeeder extends Seeder
         $this->registerUsers($w4->id, $participantIds->slice(0, 9)->all());
 
         $this->registerUsers($w5->id, $participantIds->slice(0, 3)->all());
+
+        $this->seedPastWorkshops($participantIds);
+    }
+
+    /**
+     * Completed sessions for admin history and reporting demos.
+     *
+     * @param  Collection<int, int>  $participantIds
+     */
+    private function seedPastWorkshops(Collection $participantIds): void
+    {
+        $now = Carbon::now();
+
+        /** @var list<array{name: string, slug: string, description: string, starts_at: Carbon, duration_minutes: int, capacity: int}> $pastDefinitions */
+        $pastDefinitions = [
+            [
+                'name' => 'Yoga/Pilates session',
+                'slug' => 'yoga-pilates-session-past-1',
+                'description' => 'Completed morning block — mobility and core.',
+                'starts_at' => $now->copy()->subMonths(5)->startOfMonth()->addDays(9)->setTime(10, 0, 0),
+                'duration_minutes' => 90,
+                'capacity' => 12,
+            ],
+            [
+                'name' => 'Yoga/Pilates session',
+                'slug' => 'yoga-pilates-session-past-2',
+                'description' => 'Completed session — strength and flexibility.',
+                'starts_at' => $now->copy()->subMonths(4)->startOfMonth()->addDays(14)->setTime(18, 30, 0),
+                'duration_minutes' => 60,
+                'capacity' => 12,
+            ],
+            [
+                'name' => 'Yoga/Pilates session',
+                'slug' => 'yoga-pilates-session-past-3',
+                'description' => 'Completed weekend intensive.',
+                'starts_at' => $now->copy()->subMonths(3)->startOfMonth()->addDays(21)->setTime(9, 0, 0),
+                'duration_minutes' => 120,
+                'capacity' => 12,
+            ],
+            [
+                'name' => 'How to beat Malenia',
+                'slug' => 'how-to-beat-malenia-past-1',
+                'description' => 'Completed run — Waterfowl Dance breakdown and phase two spacing.',
+                'starts_at' => $now->copy()->subMonths(5)->startOfMonth()->addDays(22)->setTime(14, 0, 0),
+                'duration_minutes' => 120,
+                'capacity' => 15,
+            ],
+            [
+                'name' => 'How to beat Malenia',
+                'slug' => 'how-to-beat-malenia-past-2',
+                'description' => 'Completed clinic — posture, parry windows, and summon synergy.',
+                'starts_at' => $now->copy()->subMonths(2)->startOfMonth()->addDays(10)->setTime(16, 0, 0),
+                'duration_minutes' => 90,
+                'capacity' => 15,
+            ],
+        ];
+
+        $pastWorkshops = collect($pastDefinitions)->map(function (array $def): Workshop {
+            return Workshop::query()->create([
+                'name' => $def['name'],
+                'slug' => $def['slug'],
+                'description' => $def['description'],
+                'starts_at' => $def['starts_at'],
+                'duration_minutes' => $def['duration_minutes'],
+                'capacity' => $def['capacity'],
+            ]);
+        });
+
+        if ($participantIds->count() < 6) {
+            return;
+        }
+
+        $this->registerUsers($pastWorkshops[0]->id, $participantIds->slice(0, 6)->all());
+        $this->registerUsers($pastWorkshops[1]->id, $participantIds->slice(6, 6)->all());
+        $this->registerUsers($pastWorkshops[2]->id, $participantIds->slice(12, 6)->all());
+        $this->registerUsers($pastWorkshops[3]->id, $participantIds->slice(18, 6)->all());
+        $this->registerUsers($pastWorkshops[4]->id, $participantIds->slice(24, 6)->all());
     }
 
     /**
