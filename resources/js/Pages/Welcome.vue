@@ -45,14 +45,14 @@ defineProps({
             <template v-else>
                 <Link
                     :href="route('login')"
-                    class="rounded-md px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
+                    class="rounded-md px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 "
                 >
                     Log in
                 </Link>
                 <Link
                     v-if="canRegister"
                     :href="route('register')"
-                    class="rounded-md px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
+                    class="rounded-md px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 "
                 >
                     Register
                 </Link>
